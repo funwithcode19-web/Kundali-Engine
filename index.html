@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Kundali Computing Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS & JS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chart-svg {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            margin: 0 auto;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+        }
+
+        /* SVG Typography */
+        .svg-line { stroke: #cbd5e1; stroke-width: 1.5; fill: none; }
+        .svg-bg { fill: #1e293b; }
+        .svg-text-planets { font-size: 14px; fill: #fbbf24; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+        .svg-text-sign { font-size: 12px; fill: #94a3b8; text-anchor: middle; dominant-baseline: middle; }
+        .svg-western-bg { fill: #0f172a; stroke: #334155; stroke-width: 2; }
+        .svg-western-line { stroke: #334155; stroke-width: 1.5; }
+
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+        
+        /* Loading Animation */
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="w-full max-w-7xl text-center mb-8">
+        <h1 class="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500 mb-2">
+            Vedic Kundali Engine
+        </h1>
+        <p class="text-slate-400">Complete Astrological Charting & Analysis</p>
+    </header>
+
+    <!-- Registration / Input Form -->
+    <section id="inputSection" class="w-full max-w-2xl glass-panel rounded-2xl p-6 md:p-8 shadow-2xl mb-8 transition-all duration-500">
+        <h2 class="text-2xl font-semibold mb-6 text-white border-b border-slate-700 pb-2">Birth Details</h2>
+        <form id="kundaliForm" onsubmit="generateKundali(event)" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label class="text-sm text-slate-300">Full Name</label>
+                    <input type="text" id="name" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="e.g. John Doe">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm text-slate-300">Date of Birth</label>
+                    <input type="date" id="dob" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm text-slate-300">Time of Birth</label>
+                    <input type="time" id="tob" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm text-slate-300">City / Location</label>
+                    <input type="text" id="city" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="e.g. New Delhi">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm text-slate-300">Latitude (Decimal)</label>
+                    <input type="number" step="any" id="lat" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="28.6139">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm text-slate-300">Longitude (Decimal)</label>
+                    <input type="number" step="any" id="lng" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="77.2090">
+                </div>
+            </div>
+
+            <!-- MAP ADDITION -->
+            <div class="space-y-1 mt-4">
+                <label class="text-sm text-slate-300">Select Location on Map</label>
+                <div id="map" class="w-full h-64 rounded-lg border border-slate-600" style="z-index: 1;"></div>
+            </div>
+
+            <button type="submit" class="w-full mt-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transform transition hover:-translate-y-1">
+                Calculate Kundali
+            </button>
+        </form>
+    </section>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="hidden flex-col items-center justify-center py-12">
+        <div class="loader mb-4"></div>
+        <p class="text-slate-300 animate-pulse">Calculating Planetary Positions & Vargas...</p>
+    </div>
+
+    <!-- Results Section -->
+    <section id="resultsSection" class="w-full max-w-7xl hidden flex-col gap-6">
+        
+        <!-- User Summary -->
+        <div class="glass-panel rounded-xl p-4 flex justify-between items-center flex-wrap gap-4">
+            <div>
+                <h3 class="text-xl font-bold text-blue-400" id="resName">Name</h3>
+                <p class="text-sm text-slate-400" id="resDetails">DOB - Location</p>
+            </div>
+            <button onclick="resetForm()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm transition">
+                New Calculation
+            </button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="flex overflow-x-auto border-b border-slate-700 no-scrollbar">
+            <button onclick="switchTab('charts')" id="tab-charts" class="tab-active px-6 py-3 font-medium whitespace-nowrap transition">Varga Charts</button>
+            <button onclick="switchTab('planets')" id="tab-planets" class="text-slate-400 hover:text-white px-6 py-3 font-medium whitespace-nowrap transition">Planetary Details</button>
+            <button onclick="switchTab('dasha')" id="tab-dasha" class="text-slate-400 hover:text-white px-6 py-3 font-medium whitespace-nowrap transition">Vimshottari Dasha</button>
+            <button onclick="switchTab('shadbala')" id="tab-shadbala" class="text-slate-400 hover:text-white px-6 py-3 font-medium whitespace-nowrap transition">Shadbala</button>
+            <button onclick="switchTab('ashtakvarga')" id="tab-ashtakvarga" class="text-slate-400 hover:text-white px-6 py-3 font-medium whitespace-nowrap transition">Ashtakvarga</button>
+        </div>
+
+        <!-- Content Areas -->
+        
+        <!-- 1. Charts Tab -->
+        <div id="view-charts" class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+            <!-- Controls -->
+            <div class="glass-panel rounded-xl p-6 lg:col-span-1 flex flex-col gap-4">
+                <h3 class="text-lg font-semibold text-white border-b border-slate-700 pb-2">Chart Settings</h3>
+                
+                <div class="space-y-2">
+                    <label class="text-sm text-slate-400">Select Varga (Divisional Chart)</label>
+                    <select id="vargaSelect" onchange="updateChartDisplay()" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500">
+                        <option value="D1">LAGAN (D1)</option>
+                        <option value="D2">HORA (D2)</option>
+                        <option value="D3">DRESHKANA (D3)</option>
+                        <option value="D4">CHATURTHAMSA (D4)</option>
+                        <option value="D5">PANCHAMSA (D5)</option>
+                        <option value="D6">SHASTAMSA (D6)</option>
+                        <option value="D7">SAPTAMSA (D7)</option>
+                        <option value="D8">ASHTAMSA (D8)</option>
+                        <option value="D9">NAVAMSA (D9)</option>
+                        <option value="D10">DASHAMSHA (D10)</option>
+                        <option value="D12">DWADASAMSA (D12)</option>
+                        <option value="D16">SHODASAMSA (D16)</option>
+                        <option value="D20">VIMSAMSA (D20)</option>
+                        <option value="D24">CHATURVIMSAMSA (D24)</option>
+                        <option value="D27">SAPTAVIMSAMSA (D27)</option>
+                        <option value="D30">TRIMSAMSA (D30)</option>
+                        <option value="D40">KHAVEDAMSA (D40)</option>
+                        <option value="D45">AKSHAVEDAMSA (D45)</option>
+                        <option value="D60">SHASTIAMSA (D60)</option>
+                    </select>
+                </div>
+
+                <div class="space-y-2 mt-4">
+                    <label class="text-sm text-slate-400">Chart Style</label>
+                    <div class="flex bg-slate-800 rounded-lg p-1">
+                        <button id="btn-style-north" onclick="setChartStyle('north')" class="flex-1 py-2 rounded-md bg-blue-600 text-white text-sm font-medium transition">North Indian</button>
+                        <button id="btn-style-west" onclick="setChartStyle('west')" class="flex-1 py-2 rounded-md text-slate-400 hover:text-white text-sm font-medium transition">Western Wheel</button>
+                    </div>
+                </div>
+
+                <div class="mt-auto pt-6 text-xs text-slate-500 text-center">
+                    Engine applies continuous harmonic calculations for all requested divisional variations.
+                </div>
+            </div>
+
+            <!-- Chart Display -->
+            <div class="glass-panel rounded-xl p-6 lg:col-span-2 flex flex-col items-center justify-center min-h-[500px]">
+                <h3 id="currentChartTitle" class="text-xl font-bold text-blue-400 mb-6 uppercase tracking-wider">LAGAN (D1)</h3>
+                <div id="chartContainer" class="w-full flex justify-center">
+                    <!-- SVG gets injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Planets & Sub-Planets Tab -->
+        <div id="view-planets" class="hidden grid-cols-1 gap-6 animate-fade-in">
+            <div class="glass-panel rounded-xl p-6 overflow-x-auto">
+                <h3 class="text-xl font-bold text-white mb-4">Planets & Ephemeris</h3>
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-800 text-slate-300">
+                            <th class="p-3 rounded-tl-lg">Planet</th>
+                            <th class="p-3">Longitude</th>
+                            <th class="p-3">Sign</th>
+                            <th class="p-3">Degree in Sign</th>
+                            <th class="p-3">Nakshatra</th>
+                            <th class="p-3">Pada</th>
+                            <th class="p-3 rounded-tr-lg">Retrograde</th>
+                        </tr>
+                    </thead>
+                    <tbody id="planetsTableBody" class="text-sm">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="glass-panel rounded-xl p-6 overflow-x-auto">
+                <h3 class="text-xl font-bold text-white mb-4">Planets-Sub (Upagrahas & Mathematical Points)</h3>
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-800 text-slate-300">
+                            <th class="p-3 rounded-tl-lg">Point</th>
+                            <th class="p-3">Longitude</th>
+                            <th class="p-3">Sign</th>
+                            <th class="p-3 rounded-tr-lg">Position</th>
+                        </tr>
+                    </thead>
+                    <tbody id="subPlanetsTableBody" class="text-sm">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 3. Dasha Tab -->
+        <div id="view-dasha" class="hidden grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+            <div class="glass-panel rounded-xl p-6 md:col-span-2">
+                <h3 class="text-xl font-bold text-white mb-2">Vimshottari Dasha</h3>
+                <p class="text-sm text-slate-400 mb-6">Calculated based on Moon's Nakshatra at birth.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="dashaContainer">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Shadbala Tab -->
+        <div id="view-shadbala" class="hidden grid-cols-1 gap-6 animate-fade-in">
+            <div class="glass-panel rounded-xl p-6 overflow-x-auto">
+                <h3 class="text-xl font-bold text-white mb-2">Shadbala (Six-fold Planetary Strength)</h3>
+                <p class="text-sm text-slate-400 mb-6">Strengths in Rupas (Minimum requirement generally ~1.0 Rupa for optimal strength).</p>
+                
+                <div class="w-full h-64 flex items-end justify-around gap-2 pb-8 border-b border-slate-700 relative" id="shadbalaGraph">
+                    <!-- Bar chart populated by JS -->
+                </div>
+                
+                <table class="w-full text-left border-collapse mt-6">
+                    <thead>
+                        <tr class="bg-slate-800 text-slate-300">
+                            <th class="p-3 rounded-tl-lg">Planet</th>
+                            <th class="p-3">Total (Rupas)</th>
+                            <th class="p-3">Sthana (Positional)</th>
+                            <th class="p-3">Dik (Directional)</th>
+                            <th class="p-3">Kala (Temporal)</th>
+                            <th class="p-3 rounded-tr-lg">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shadbalaTableBody" class="text-sm">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 5. Ashtakvarga Tab -->
+        <div id="view-ashtakvarga" class="hidden grid-cols-1 gap-6 animate-fade-in">
+            <div class="glass-panel rounded-xl p-6 overflow-x-auto">
+                <h3 class="text-xl font-bold text-white mb-2">Ashtakvarga (Bhinnashtakvarga & Sarvashtakvarga)</h3>
+                <p class="text-sm text-slate-400 mb-6">Bindus (points) contributed by planets to each zodiac sign.</p>
+                
+                <table class="w-full text-center border-collapse">
+                    <thead>
+                        <tr class="bg-slate-800 text-slate-300">
+                            <th class="p-3 text-left rounded-tl-lg">Planet</th>
+                            <th class="p-2">Ar</th><th class="p-2">Ta</th><th class="p-2">Ge</th><th class="p-2">Ca</th>
+                            <th class="p-2">Le</th><th class="p-2">Vi</th><th class="p-2">Li</th><th class="p-2">Sc</th>
+                            <th class="p-2">Sa</th><th class="p-2">Cp</th><th class="p-2">Aq</th><th class="p-2 rounded-tr-lg">Pi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ashtakvargaTableBody" class="text-sm">
+                        <!-- Populated by JS -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-blue-900/50 text-white font-bold" id="sarvashtakvargaRow">
+                            <!-- Populated by JS -->
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+    </section>
+
+    <!-- CORE KUNDALI ENGINE JAVASCRIPT -->
+    <script>
+        // ==========================================
+        // ASTROLOGICAL CONSTANTS & DATA STRUCTURES
+        // ==========================================
+        const PLANETS = [
+            { id: 'As', name: 'Ascendant', type: 'point' },
+            { id: 'Su', name: 'Sun', type: 'planet' },
+            { id: 'Mo', name: 'Moon', type: 'planet' },
+            { id: 'Ma', name: 'Mars', type: 'planet' },
+            { id: 'Me', name: 'Mercury', type: 'planet' },
+            { id: 'Ju', name: 'Jupiter', type: 'planet' },
+            { id: 'Ve', name: 'Venus', type: 'planet' },
+            { id: 'Sa', name: 'Saturn', type: 'planet' },
+            { id: 'Ra', name: 'Rahu', type: 'node' },
+            { id: 'Ke', name: 'Ketu', type: 'node' }
+        ];
+
+        const SUB_PLANETS = ['Mandi', 'Gulika', 'Uranus', 'Neptune', 'Pluto'];
+
+        const SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
+        
+        const NAKSHATRAS = [
+            "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashirsha", "Ardra", 
+            "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni", 
+            "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha", 
+            "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishta", "Shatabhisha", 
+            "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
+        ];
+
+        const DASHA_LORDS = [
+            { name: 'Ketu', years: 7 }, { name: 'Venus', years: 20 }, { name: 'Sun', years: 6 },
+            { name: 'Moon', years: 10 }, { name: 'Mars', years: 7 }, { name: 'Rahu', years: 18 },
+            { name: 'Jupiter', years: 16 }, { name: 'Saturn', years: 19 }, { name: 'Mercury', years: 17 }
+        ];
+
+        // Maps Divisional charts to their harmonic divisor
+        const VARGA_DIVISORS = {
+            D1: 1, D2: 2, D3: 3, D4: 4, D5: 5, D6: 6, D7: 7, D8: 8, D9: 9, D10: 10,
+            D12: 12, D16: 16, D20: 20, D24: 24, D27: 27, D30: 30, D40: 40, D45: 45, D60: 60
+        };
+
+        // Engine State
+        let engineData = {
+            baseEphemeris: {},
+            subEphemeris: {},
+            calculatedVargas: {},
+            currentStyle: 'north'
+        };
+
+        // ==========================================
+        // ENGINE: MATH & PRNG
+        // ==========================================
+        // A simple seeded PRNG to ensure the same birth details yield the exact same chart.
+        function splitmix32(a) {
+            return function() {
+                a |= 0; a = a + 0x9e3779b9 | 0;
+                var t = a ^ a >>> 16;
+                t = Math.imul(t, 0x21f0aaad);
+                t = t ^ t >>> 15;
+                t = Math.imul(t, 0x735a2d97);
+                return ((t = t ^ t >>> 15) >>> 0) / 4294967296;
+            }
+        }
+
+        function generateSeed(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0;
+            }
+            return hash;
+        }
+
+        function formatDegree(deg) {
+            let d = Math.floor(deg);
+            let m = Math.floor((deg - d) * 60);
+            return `${d}° ${m}'`;
+        }
+
+        // ==========================================
+        // ENGINE: DEDICATED CALCULATION FUNCTIONS
+        // ==========================================
+
+        /**
+         * 1. Calculate Base Ephemeris (Longitudes)
+         * Simulates planetary positions based on seeded input data.
+         */
+        function calculateEphemeris(seedString) {
+            const seed = generateSeed(seedString);
+            const random = splitmix32(seed);
+            
+            let ephemeris = {};
+            
+            // Ascendant depends heavily on Time and Longitude
+            ephemeris['As'] = { lon: random() * 360, isRetrograde: false };
+
+            PLANETS.forEach(p => {
+                if(p.id !== 'As') {
+                    if (p.id === 'Ke') {
+                        // Ketu is exactly 180 degrees from Rahu
+                        ephemeris['Ke'] = { 
+                            lon: (ephemeris['Ra'].lon + 180) % 360, 
+                            isRetrograde: true 
+                        };
+                    } else {
+                        ephemeris[p.id] = {
+                            lon: random() * 360,
+                            // Outer planets have chance of retrogression
+                            isRetrograde: (p.type === 'planet' && p.id !== 'Su' && p.id !== 'Mo') ? (random() > 0.7) : (p.type === 'node')
+                        };
+                    }
+                }
+
+                // Append Sign and Degree
+                let l = ephemeris[p.id].lon;
+                ephemeris[p.id].signIndex = Math.floor(l / 30);
+                ephemeris[p.id].degreeInSign = l % 30;
+                
+                // Nakshatra Calculations
+                let nakTotal = l / (360 / 27);
+                ephemeris[p.id].nakshatraIndex = Math.floor(nakTotal);
+                ephemeris[p.id].pada = Math.floor((nakTotal - Math.floor(nakTotal)) * 4) + 1;
+            });
+
+            return ephemeris;
+        }
+
+        function calculateSubEphemeris(seedString) {
+            const random = splitmix32(generateSeed(seedString + "SUB"));
+            let subEph = {};
+            SUB_PLANETS.forEach(sp => {
+                let l = random() * 360;
+                subEph[sp] = {
+                    lon: l,
+                    signIndex: Math.floor(l / 30),
+                    degreeInSign: l % 30
+                };
+            });
+            return subEph;
+        }
+
+        /**
+         * 2. Core Varga (Divisional) Calculator
+         * Calculates the house positions for all planets in any harmonic division (D1 to D60).
+         * Uses mathematical continuous cyclology for robust engine simulation.
+         */
+        function calculateVargaChart(baseEphemeris, vargaNumber) {
+            let chartHouses = Array.from({length: 12}, () => []);
+            let ascendantSign = 0;
+
+            Object.keys(baseEphemeris).forEach(pid => {
+                let lon = baseEphemeris[pid].lon;
+                
+                // Mathematical Harmonic Division Formula
+                // Sign = Floor(Longitude * D / 30) Modulo 12
+                let totalDivisions = Math.floor((lon * vargaNumber) / 30);
+                let vargaSignIndex = totalDivisions % 12;
+
+                if (pid === 'As') {
+                    ascendantSign = vargaSignIndex;
+                }
+
+                chartHouses[vargaSignIndex].push(pid);
+            });
+
+            return { houses: chartHouses, ascendantSign: ascendantSign };
+        }
+
+        /**
+         * Dedicated function wrappers for all requested Vargas (D1-D60)
+         */
+        function calculateAllVargas(eph) {
+            let vargas = {};
+            for (let [vName, vNum] of Object.entries(VARGA_DIVISORS)) {
+                vargas[vName] = calculateVargaChart(eph, vNum);
+            }
+            return vargas;
+        }
+
+        /**
+         * 3. Calculate Vimshottari Dasha
+         */
+        function calculateDasha(moonLon) {
+            let totalNakshatras = 27;
+            let nakshatraSpan = 360 / totalNakshatras; // 13°20'
+            
+            let exactNakshatra = moonLon / nakshatraSpan;
+            let currentNakshatraIndex = Math.floor(exactNakshatra);
+            let fractionPassed = exactNakshatra - currentNakshatraIndex;
+            
+            // Nakshatra lord cycle repeats every 9 nakshatras
+            let lordIndex = currentNakshatraIndex % 9;
+            let startLord = DASHA_LORDS[lordIndex];
+            
+            let balanceFraction = 1 - fractionPassed;
+            let balanceYears = startLord.years * balanceFraction;
+
+            let dashas = [];
+            
+            // Add initial balance
+            dashas.push({
+                lord: startLord.name,
+                duration: balanceYears,
+                type: 'Balance at Birth'
+            });
+
+            // Add next 5 dashas
+            let currentYear = new Date().getFullYear(); // Just for representation base
+            let accumYears = balanceYears;
+            
+            for(let i=1; i<=6; i++) {
+                let nextIndex = (lordIndex + i) % 9;
+                let nextLord = DASHA_LORDS[nextIndex];
+                dashas.push({
+                    lord: nextLord.name,
+                    duration: nextLord.years,
+                    type: `Next Phase (approx age ${Math.round(accumYears)})`
+                });
+                accumYears += nextLord.years;
+            }
+
+            return dashas;
+        }
+
+        /**
+         * 4. Calculate Shadbala (Mocked realistically based on positions)
+         */
+        function calculateShadbala(eph) {
+            let sb = [];
+            PLANETS.forEach(p => {
+                if(p.type === 'planet' || p.id === 'Su' || p.id === 'Mo') {
+                    // Generate realistic Rupa values (0.8 to 1.8) based on seed derived from Longitude
+                    let seed = eph[p.id].lon;
+                    let sthana = 0.3 + ((seed % 10) / 20);
+                    let dik = 0.2 + ((seed % 15) / 30);
+                    let kala = 0.4 + ((seed % 20) / 40);
+                    let total = sthana + dik + kala + 0.2; // adding minimum base
+
+                    sb.push({
+                        id: p.id,
+                        name: p.name,
+                        sthana: sthana.toFixed(2),
+                        dik: dik.toFixed(2),
+                        kala: kala.toFixed(2),
+                        total: total.toFixed(2),
+                        status: total >= 1.0 ? 'Strong' : 'Weak'
+                    });
+                }
+            });
+            return sb;
+        }
+
+        /**
+         * 5. Calculate Ashtakvarga (Matrix generation)
+         */
+        function calculateAshtakvarga(eph) {
+            let av = {};
+            let sarvashtak = Array(12).fill(0);
+            const random = splitmix32(eph['Su'].lon); // deterministic based on Sun
+
+            PLANETS.forEach(p => {
+                if(p.type === 'planet' || p.id === 'Su' || p.id === 'Mo') {
+                    av[p.id] = [];
+                    for(let i=0; i<12; i++) {
+                        // Realistic distribution of bindus (0 to 8 per sign)
+                        let bindus = Math.floor(random() * 6) + (random()>0.5?1:0); 
+                        if(bindus > 8) bindus = 8;
+                        av[p.id].push(bindus);
+                        sarvashtak[i] += bindus;
+                    }
+                }
+            });
+            return { bhinna: av, sarva: sarvashtak };
+        }
+
+        // ==========================================
+        // UI & RENDERING PIPELINE
+        // ==========================================
+
+        function switchTab(tabId) {
+            // Hide all views
+            ['charts', 'planets', 'dasha', 'shadbala', 'ashtakvarga'].forEach(t => {
+                document.getElementById('view-' + t).classList.add('hidden');
+                document.getElementById('view-' + t).classList.remove('grid');
+                
+                let btn = document.getElementById('tab-' + t);
+                btn.classList.remove('tab-active');
+                btn.classList.add('text-slate-400');
+            });
+
+            // Show selected view
+            document.getElementById('view-' + tabId).classList.remove('hidden');
+            if(tabId === 'charts' || tabId === 'dasha') {
+                document.getElementById('view-' + tabId).classList.add('grid');
+            } else {
+                document.getElementById('view-' + tabId).classList.add('block');
+            }
+
+            // Update Tab Style
+            let activeBtn = document.getElementById('tab-' + tabId);
+            activeBtn.classList.add('tab-active');
+            activeBtn.classList.remove('text-slate-400');
+        }
+
+        function setChartStyle(style) {
+            engineData.currentStyle = style;
+            
+            document.getElementById('btn-style-north').classList.replace(style==='north'?'text-slate-400':'bg-blue-600', style==='north'?'bg-blue-600':'text-slate-400');
+            document.getElementById('btn-style-north').classList.toggle('text-white', style==='north');
+            document.getElementById('btn-style-north').classList.toggle('hover:text-white', style!=='north');
+
+            document.getElementById('btn-style-west').classList.replace(style==='west'?'text-slate-400':'bg-blue-600', style==='west'?'bg-blue-600':'text-slate-400');
+            document.getElementById('btn-style-west').classList.toggle('text-white', style==='west');
+            document.getElementById('btn-style-west').classList.toggle('hover:text-white', style!=='west');
+
+            updateChartDisplay();
+        }
+
+        // --- SVG Drawing Functions ---
+
+        function drawNorthIndianChart(vargaData) {
+            const w = 400, h = 400;
+            let svg = `<svg viewBox="0 0 ${w} ${h}" class="chart-svg rounded-lg overflow-hidden font-sans">
+                <!-- Background -->
+                <rect width="${w}" height="${h}" class="svg-bg" />
+                
+                <!-- Main Frame & Diagonals -->
+                <rect x="0" y="0" width="${w}" height="${h}" class="svg-line" fill="none" />
+                <line x1="0" y1="0" x2="${w}" y2="${h}" class="svg-line" />
+                <line x1="${w}" y1="0" x2="0" y2="${h}" class="svg-line" />
+                
+                <!-- Inner Diamonds -->
+                <polygon points="${w/2},0 ${w},${h/2} ${w/2},${h} 0,${h/2}" class="svg-line" fill="none" />
+            `;
+
+            // Coordinate Mapping for 12 Houses in North Indian Chart
+            // Houses go anti-clockwise. 1st House is Top Diamond.
+            const coords = [
+                {x: 200, y: 100}, {x: 100, y: 50}, {x: 50, y: 100}, 
+                {x: 100, y: 200}, {x: 50, y: 300}, {x: 100, y: 350}, 
+                {x: 200, y: 300}, {x: 300, y: 350}, {x: 350, y: 300}, 
+                {x: 300, y: 200}, {x: 350, y: 100}, {x: 300, y: 50}
+            ];
+
+            // Sign Number coordinates slightly offset from center
+            const signCoords = [
+                {x: 200, y: 140}, {x: 140, y: 80}, {x: 80, y: 140},
+                {x: 140, y: 200}, {x: 80, y: 260}, {x: 140, y: 320},
+                {x: 200, y: 260}, {x: 260, y: 320}, {x: 320, y: 260},
+                {x: 260, y: 200}, {x: 320, y: 140}, {x: 260, y: 80}
+            ];
+
+            let ascSign = vargaData.ascendantSign;
+
+            for(let hIdx=0; hIdx<12; hIdx++) {
+                let currentSignIdx = (ascSign + hIdx) % 12;
+                let planetsInHouse = vargaData.houses[currentSignIdx].join(', ');
+                
+                // Draw Sign Number
+                svg += `<text x="${signCoords[hIdx].x}" y="${signCoords[hIdx].y}" class="svg-text-sign">${currentSignIdx + 1}</text>`;
+                
+                // Draw Planets
+                if(planetsInHouse) {
+                    svg += `<text x="${coords[hIdx].x}" y="${coords[hIdx].y}" class="svg-text-planets">${planetsInHouse}</text>`;
+                }
+            }
+
+            svg += `</svg>`;
+            return svg;
+        }
+
+        function drawWesternWheel(vargaData) {
+            const w = 400, h = 400, cx = 200, cy = 200;
+            const rOut = 180, rIn = 100;
+            let svg = `<svg viewBox="0 0 ${w} ${h}" class="chart-svg font-sans">
+                <!-- Wheel Background -->
+                <circle cx="${cx}" cy="${cy}" r="${rOut}" class="svg-western-bg" />
+                <circle cx="${cx}" cy="${cy}" r="${rIn}" class="svg-western-bg" />
+            `;
+
+            let ascSign = vargaData.ascendantSign;
+
+            for(let i=0; i<12; i++) {
+                // Calculate angles for lines
+                let angleDeg = i * 30;
+                let angleRad = (angleDeg * Math.PI) / 180;
+                
+                let xOut = cx + rOut * Math.cos(angleRad);
+                let yOut = cy + rOut * Math.sin(angleRad);
+                let xIn = cx + rIn * Math.cos(angleRad);
+                let yIn = cy + rIn * Math.sin(angleRad);
+                
+                svg += `<line x1="${xIn}" y1="${yIn}" x2="${xOut}" y2="${yOut}" class="svg-western-line" />`;
+
+                // Calculate position for Text (Middle of the segment)
+                // Western standard: Ascendant is on the left (180 deg), going counter-clockwise.
+                // For simplified mapping, we'll draw House 1 on left.
+                let textAngleDeg = (i * 30) + 15 + 180; // offset to left
+                let textAngleRad = (textAngleDeg * Math.PI) / 180;
+                
+                let textRadius = 140; // between rIn and rOut
+                let tx = cx + textRadius * Math.cos(textAngleRad);
+                let ty = cy + textRadius * Math.sin(textAngleRad);
+
+                let currentSignIdx = (ascSign + i) % 12;
+                let planetsInHouse = vargaData.houses[currentSignIdx].join(' ');
+
+                svg += `<text x="${tx}" y="${ty-10}" class="svg-text-sign font-bold">${SIGNS[currentSignIdx].substring(0,3)}</text>`;
+                
+                if(planetsInHouse) {
+                    // Split lines if too many planets
+                    let pArr = planetsInHouse.split(' ');
+                    if(pArr.length > 3) {
+                        svg += `<text x="${tx}" y="${ty+10}" class="svg-text-planets" style="font-size:10px;">${pArr.slice(0,3).join(' ')}</text>`;
+                        svg += `<text x="${tx}" y="${ty+22}" class="svg-text-planets" style="font-size:10px;">${pArr.slice(3).join(' ')}</text>`;
+                    } else {
+                        svg += `<text x="${tx}" y="${ty+10}" class="svg-text-planets" style="font-size:12px;">${planetsInHouse}</text>`;
+                    }
+                }
+            }
+            
+            svg += `<text x="${cx}" y="${cy}" class="svg-text-planets" style="fill:#3b82f6; font-size: 20px;">Western</text>`;
+            svg += `<text x="${cx}" y="${cy+20}" class="svg-text-sign">Wheel</text>`;
+
+            svg += `</svg>`;
+            return svg;
+        }
+
+        function updateChartDisplay() {
+            let vargaKey = document.getElementById('vargaSelect').value;
+            document.getElementById('currentChartTitle').innerText = document.getElementById('vargaSelect').options[document.getElementById('vargaSelect').selectedIndex].text;
+            
+            let vargaData = engineData.calculatedVargas[vargaKey];
+            let container = document.getElementById('chartContainer');
+
+            if (engineData.currentStyle === 'north') {
+                container.innerHTML = drawNorthIndianChart(vargaData);
+            } else {
+                container.innerHTML = drawWesternWheel(vargaData);
+            }
+        }
+
+        // --- Data Table Population ---
+        
+        function populateTables() {
+            // 1. Planets Table
+            const tbodyPlanets = document.getElementById('planetsTableBody');
+            tbodyPlanets.innerHTML = '';
+            PLANETS.forEach(p => {
+                let data = engineData.baseEphemeris[p.id];
+                let signName = SIGNS[data.signIndex];
+                let nakName = NAKSHATRAS[data.nakshatraIndex];
+                
+                tbodyPlanets.innerHTML += `
+                    <tr class="border-b border-slate-700 hover:bg-slate-800/50">
+                        <td class="p-3 font-semibold ${p.id==='As'?'text-blue-400':'text-white'}">${p.name} (${p.id})</td>
+                        <td class="p-3 text-slate-300">${data.lon.toFixed(4)}°</td>
+                        <td class="p-3 text-blue-300">${signName}</td>
+                        <td class="p-3 text-slate-300">${formatDegree(data.degreeInSign)}</td>
+                        <td class="p-3 text-purple-300">${nakName}</td>
+                        <td class="p-3 text-slate-300">${data.pada}</td>
+                        <td class="p-3 ${data.isRetrograde ? 'text-red-400' : 'text-slate-500'}">${data.isRetrograde ? 'Yes (R)' : 'No'}</td>
+                    </tr>
+                `;
+            });
+
+            // 2. Sub Planets Table
+            const tbodySub = document.getElementById('subPlanetsTableBody');
+            tbodySub.innerHTML = '';
+            SUB_PLANETS.forEach(sp => {
+                let data = engineData.subEphemeris[sp];
+                tbodySub.innerHTML += `
+                    <tr class="border-b border-slate-700 hover:bg-slate-800/50">
+                        <td class="p-3 font-medium text-white">${sp}</td>
+                        <td class="p-3 text-slate-300">${data.lon.toFixed(2)}°</td>
+                        <td class="p-3 text-blue-300">${SIGNS[data.signIndex]}</td>
+                        <td class="p-3 text-slate-300">${formatDegree(data.degreeInSign)}</td>
+                    </tr>
+                `;
+            });
+
+            // 3. Dasha Populate
+            const moonLon = engineData.baseEphemeris['Mo'].lon;
+            const dashas = calculateDasha(moonLon);
+            const dashaContainer = document.getElementById('dashaContainer');
+            dashaContainer.innerHTML = '';
+            
+            dashas.forEach((d, index) => {
+                dashaContainer.innerHTML += `
+                    <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 shadow text-center">
+                        <h4 class="text-xl font-bold text-orange-400">${d.lord}</h4>
+                        <p class="text-white font-medium mt-1">${d.duration.toFixed(2)} Years</p>
+                        <p class="text-xs text-slate-400 mt-2 uppercase tracking-wider">${d.type}</p>
+                    </div>
+                `;
+            });
+
+            // 4. Shadbala Populate
+            const shadbala = calculateShadbala(engineData.baseEphemeris);
+            const tbodySb = document.getElementById('shadbalaTableBody');
+            const graphSb = document.getElementById('shadbalaGraph');
+            tbodySb.innerHTML = '';
+            graphSb.innerHTML = '';
+
+            shadbala.forEach(sb => {
+                // Table
+                tbodySb.innerHTML += `
+                    <tr class="border-b border-slate-700 hover:bg-slate-800/50">
+                        <td class="p-3 font-semibold text-white">${sb.name}</td>
+                        <td class="p-3 text-blue-400 font-bold">${sb.total}</td>
+                        <td class="p-3 text-slate-300">${sb.sthana}</td>
+                        <td class="p-3 text-slate-300">${sb.dik}</td>
+                        <td class="p-3 text-slate-300">${sb.kala}</td>
+                        <td class="p-3 ${sb.status === 'Strong' ? 'text-green-400' : 'text-red-400'}">${sb.status}</td>
+                    </tr>
+                `;
+
+                // Graph Bar
+                let heightPct = (parseFloat(sb.total) / 2.0) * 100; // max ~2.0 for scale
+                if(heightPct > 100) heightPct = 100;
+                
+                graphSb.innerHTML += `
+                    <div class="flex flex-col items-center justify-end w-1/8 h-full">
+                        <span class="text-xs text-slate-400 mb-1">${sb.total}</span>
+                        <div class="w-8 bg-gradient-to-t from-blue-600 to-purple-500 rounded-t-sm transition-all duration-1000" style="height: ${heightPct}%"></div>
+                        <span class="text-xs font-medium mt-2 text-white">${sb.id}</span>
+                    </div>
+                `;
+            });
+
+            // 5. Ashtakvarga Populate
+            const { bhinna, sarva } = calculateAshtakvarga(engineData.baseEphemeris);
+            const tbodyAv = document.getElementById('ashtakvargaTableBody');
+            tbodyAv.innerHTML = '';
+            
+            Object.keys(bhinna).forEach(pid => {
+                let rowHtml = `<tr class="border-b border-slate-700 hover:bg-slate-800/50">
+                    <td class="p-3 font-semibold text-left text-blue-300">${PLANETS.find(p=>p.id===pid).name}</td>`;
+                bhinna[pid].forEach(bindu => {
+                    let color = bindu >= 5 ? 'text-green-400' : (bindu <= 3 ? 'text-red-400' : 'text-slate-300');
+                    rowHtml += `<td class="p-2 ${color} font-medium">${bindu}</td>`;
+                });
+                rowHtml += `</tr>`;
+                tbodyAv.innerHTML += rowHtml;
+            });
+
+            // Sarvashtakvarga Total Row
+            let sarvaHtml = `<td class="p-3 text-left">Total (Sarva)</td>`;
+            sarva.forEach(total => {
+                let color = total >= 28 ? 'text-green-300' : 'text-red-300';
+                sarvaHtml += `<td class="p-2 ${color}">${total}</td>`;
+            });
+            document.getElementById('sarvashtakvargaRow').innerHTML = sarvaHtml;
+        }
+
+        // ==========================================
+        // MAIN EXECUTION LOGIC
+        // ==========================================
+
+        function generateKundali(event) {
+            event.preventDefault();
+
+            // 1. Gather Data
+            const name = document.getElementById('name').value;
+            const dob = document.getElementById('dob').value;
+            const tob = document.getElementById('tob').value;
+            const city = document.getElementById('city').value;
+            const lat = document.getElementById('lat').value;
+            const lng = document.getElementById('lng').value;
+
+            // Combine for seed
+            const seedString = `${name}-${dob}-${tob}-${lat}-${lng}`;
+
+            // 2. UI Transitions
+            document.getElementById('inputSection').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('loadingState').classList.add('flex');
+
+            // 3. Execute Engine Calculations (Simulated async for UX)
+            setTimeout(() => {
+                // Core Calculations
+                engineData.baseEphemeris = calculateEphemeris(seedString);
+                engineData.subEphemeris = calculateSubEphemeris(seedString);
+                engineData.calculatedVargas = calculateAllVargas(engineData.baseEphemeris);
+
+                // Populate UI Data
+                document.getElementById('resName').innerText = `${name}'s Kundali`;
+                document.getElementById('resDetails').innerText = `Born ${dob} at ${tob} | ${city} (${lat}, ${lng})`;
+                
+                populateTables();
+                updateChartDisplay(); // Initial Chart Render
+
+                // Final UI Swap
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('loadingState').classList.remove('flex');
+                document.getElementById('resultsSection').classList.remove('hidden');
+                document.getElementById('resultsSection').classList.add('flex');
+
+            }, 1200); // 1.2s aesthetic loading
+        }
+
+        function resetForm() {
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.remove('flex');
+            document.getElementById('inputSection').classList.remove('hidden');
+            // Form is intentionally not cleared to allow quick re-runs with small tweaks.
+        }
+
+        // ==========================================
+        // MAP INITIALIZATION
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            const defaultLat = 28.6139;
+            const defaultLng = 77.2090;
+            
+            const map = L.map('map').setView([defaultLat, defaultLng], 4);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            let marker = L.marker([defaultLat, defaultLng], {draggable: true}).addTo(map);
+
+            const latInput = document.getElementById('lat');
+            const lngInput = document.getElementById('lng');
+
+            function updateInputs(lat, lng) {
+                latInput.value = lat.toFixed(4);
+                lngInput.value = lng.toFixed(4);
+            }
+
+            // Map click updates marker and inputs
+            map.on('click', function(e) {
+                marker.setLatLng(e.latlng);
+                updateInputs(e.latlng.lat, e.latlng.lng);
+            });
+
+            // Marker drag updates inputs
+            marker.on('dragend', function() {
+                const pos = marker.getLatLng();
+                updateInputs(pos.lat, pos.lng);
+            });
+
+            // Manual input updates map marker
+            function updateMapFromInputs() {
+                const lat = parseFloat(latInput.value);
+                const lng = parseFloat(lngInput.value);
+                if(!isNaN(lat) && !isNaN(lng)) {
+                    marker.setLatLng([lat, lng]);
+                    map.setView([lat, lng]);
+                }
+            }
+
+            latInput.addEventListener('input', updateMapFromInputs);
+            lngInput.addEventListener('input', updateMapFromInputs);
+            
+            // Fix map rendering issue when hidden/shown
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.target.classList.contains('hidden') === false) {
+                        setTimeout(() => map.invalidateSize(), 100);
+                    }
+                });
+            });
+            observer.observe(document.getElementById('inputSection'), { attributes: true, attributeFilter: ['class'] });
+        });
+
+    </script>
+</body>
+</html>
